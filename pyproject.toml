@@ -1,0 +1,27 @@
+[project]
+name = "you-tube-rag"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Aleksa Mihajlovic",email = "mihajlovic.aleksa@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11, <3.15"
+dependencies = [
+    "yt-dlp (>=2025.11.12,<2026.0.0)",
+    "langchain-core (>=1.1.0,<2.0.0)",
+    "langchain-community (>=0.4.1,<0.5.0)",
+    "langchain-text-splitters (>=1.0.0,<2.0.0)",
+    "langchain-openai (>=1.1.0,<2.0.0)",
+    "chromadb (>=1.3.5,<2.0.0)",
+    "langchain-chroma (>=1.0.0,<2.0.0)",
+]
+[tool.poetry]
+package-mode = false 
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^7.1.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
