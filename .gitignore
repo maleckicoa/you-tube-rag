@@ -3,4 +3,3 @@
 chroma_db/*
 playlist_captions.json
 poetry.lock
-*.ipynb
