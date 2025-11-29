@@ -3,3 +3,7 @@
 chroma_db/*
 playlist_captions.json
 poetry.lock
+**/.DS_Store
+
+__pycache__/
+*.pyc
