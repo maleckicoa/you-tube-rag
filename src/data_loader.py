@@ -108,5 +108,5 @@ def embed_playlist_captions(captions, API_KEY):
 
 
 if __name__ == "__main__":
-    #create_playlist_captions(playlist_url = "https://www.youtube.com/playlist?list=PLD18sR-9Y-XFVCP-cSjCLr8A1B_IRsvp-")
+    create_playlist_captions(playlist_url = "https://www.youtube.com/playlist?list=PLD18sR-9Y-XFVCP-cSjCLr8A1B_IRsvp-")
     embed_playlist_captions(captions = "playlist_captions.json", API_KEY = OPENAI_API_KEY)
