@@ -1,9 +1,10 @@
 .env
 .venv
 chroma_db/*
-playlist_captions.json
 poetry.lock
 **/.DS_Store
+data/**/*.*
+
 
 __pycache__/
 *.pyc

@@ -1,4 +1,5 @@
 from yt_dlp import YoutubeDL
+import os
 import json
 import uuid
 
@@ -8,16 +9,20 @@ from pathlib import Path
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
+import warnings
+warnings.filterwarnings("ignore")
 
-import os
+from urllib.request import urlopen
 from utils import extract_plaintext_from_json_subs
+
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
 def create_playlist_captions(playlist_url):
 
-    #playlist_url = "https://www.youtube.com/playlist?list=PLD18sR-9Y-XG8OS7CZ_3IQCux5KzgcCiZ"
+    # Resolve data directories inside you-tube-rag/data
+    thumbs_dir = "data/thumbnails"
 
     opts = {
         "skip_download": True,
@@ -27,6 +32,7 @@ def create_playlist_captions(playlist_url):
         "convert_subtitles": "srt",
         "quiet": True,
         "ignoreerrors": True,
+        "no_warnings": True,
     }
 
     results = []
@@ -40,6 +46,24 @@ def create_playlist_captions(playlist_url):
 
             video_url = entry["webpage_url"]
             title = entry["title"]
+            video_id = entry.get("id")  # YouTube video id if available
+            
+            # Build thumbnail URL and download to data/thumbnails
+            thumbnail_url = None
+            if video_id:
+                thumbnail_url = f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg"
+                try:
+                  
+                    thumb_bytes = urlopen(thumbnail_url).read()
+                    thumb_path = thumbs_dir + f"/{video_id}.jpg"
+   
+                    with open(thumb_path, "wb") as tf:
+                        tf.write(thumb_bytes)
+                    thumbnail_path_rel = f"data/thumbnails/{video_id}.jpg"
+                except Exception:
+                    thumbnail_path_rel = None
+            else:
+                thumbnail_path_rel = None
 
             # Extract subtitles (if available)
             subs = entry.get("subtitles") or entry.get("automatic_captions") or {}
@@ -56,18 +80,21 @@ def create_playlist_captions(playlist_url):
 
             results.append({
                 "id": str(uuid.uuid4()),
+                "video_id": video_id,
                 "url": video_url,
                 "title": title,
-                "text": caption_text.strip()
+                "text": caption_text.strip(),
+                "thumbnail": thumbnail_path_rel,
             })
 
 
 
     results = [item for item in results if item["text"] != ""]
-    with open("playlist_captions.json", "w") as f:
-        json.dump(results, f, indent=2)
+    output_json = "data/playlist_captions.json"
+    with open(output_json, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2, ensure_ascii=False)
 
-    print("Done → playlist_captions.json")
+    print(f"Done → {output_json}")
 
 
 
@@ -109,4 +136,5 @@ def embed_playlist_captions(captions, API_KEY):
 
 if __name__ == "__main__":
     create_playlist_captions(playlist_url = "https://www.youtube.com/playlist?list=PLD18sR-9Y-XFVCP-cSjCLr8A1B_IRsvp-")
-    embed_playlist_captions(captions = "playlist_captions.json", API_KEY = OPENAI_API_KEY)
+    #create_playlist_captions(playlist_url = "https://www.youtube.com/playlist?list=PLD18sR-9Y-XH4WXRV9aSLKTU9a_eh6j6_") # short playlist
+    embed_playlist_captions(captions = str("data/playlist_captions.json"), API_KEY = OPENAI_API_KEY)
