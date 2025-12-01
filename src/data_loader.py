@@ -33,6 +33,7 @@ def create_playlist_captions(playlist_url):
         "quiet": True,
         "ignoreerrors": True,
         "no_warnings": True,
+        "cookiesfrombrowser": ("chrome",),
     }
 
     results = []
