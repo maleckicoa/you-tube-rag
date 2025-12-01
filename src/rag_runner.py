@@ -9,7 +9,7 @@ from langchain_core.runnables import RunnableParallel, RunnableLambda
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
 
-from utils import extract_metadata, format_context, trim_history
+from src.utils import extract_metadata, format_context, trim_history
 
 from dotenv import load_dotenv
 
