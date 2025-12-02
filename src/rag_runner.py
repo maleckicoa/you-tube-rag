@@ -39,6 +39,7 @@ def setup_rag(API_KEY):
     )
 
     print("DOCUMENT COUNT IN CHROMA:", vectordb._collection.count())
+    
 
     prompt = ChatPromptTemplate.from_messages([
         ("system",
