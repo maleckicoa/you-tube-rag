@@ -5,11 +5,8 @@ from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableParallel, RunnableLambda
-from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import  RunnableLambda
 from langchain_core.messages import HumanMessage, AIMessage
-
-from src.utils import extract_metadata, format_context, trim_history
 
 from dotenv import load_dotenv
 
@@ -19,147 +16,114 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
 
-def setup_rag(API_KEY):
+def setup_rag(api_key):
 
-    emb = OpenAIEmbeddings(model="text-embedding-3-small", api_key=API_KEY)
-    llm = ChatOpenAI(model="gpt-4.1", temperature=0, api_key=API_KEY)
+    emb = OpenAIEmbeddings(model="text-embedding-3-small", api_key=api_key)
+    llm = ChatOpenAI(model="gpt-4.1", temperature=0, api_key=api_key)
 
     vectordb = Chroma(
         collection_name="youtube_captions",
         persist_directory="chroma_db",
         embedding_function=emb
     )
-
-    #items = vectordb.get(include=["embeddings", "documents"])
-    # print(items.keys(), items["ids"], items["documents"][150], items["embeddings"][0][:10])
-
-
-    retriever = vectordb.as_retriever(
-        search_kwargs={"k": 10}   # how many chunks to return
-    )
-
+    retriever = vectordb.as_retriever(search_kwargs={"k": 10})
     print("DOCUMENT COUNT IN CHROMA:", vectordb._collection.count())
-    
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system",
-        """
-        You are a strict retrieval-augmented assistant called WealthMate.
 
-        You MUST follow these rules exactly:
 
-        1. You may ONLY answer using the provided context.
-        2. First, inspect the context and determine whether it contains information
-           that directly answers the user's question.
-        3. If the context does NOT contain the answer, reply EXACTLY with:
-           "Sorry, your question doesn't seem related to investing, could you please rephrase?"
-        4. Do NOT rely on prior knowledge. Do NOT guess.
-        5. If the context DOES contain the answer, answer concisely and suggest
-           watching the YouTube video.
+   
 
-        Context:
-        {context}
-        """
-        ),
-        ("placeholder", "{history}"),
-        ("human", "{question}"),
+
+    rewrite_prompt = ChatPromptTemplate.from_messages([
+        ("system", """Rewrite the user's question so it makes sense 
+        in the context of the conversation. Do NOT answer. Only rewrite."""),
+        ("human", "{input}")
+    ])
+    rewrite_chain = rewrite_prompt | llm | RunnableLambda(lambda x: x.content.strip())
+
+
+
+    answer_prompt = ChatPromptTemplate.from_messages([
+        ("system", """You answer ONLY using the retrieved documents.
+        If the answer is not there, say you don't know."""),
+        ("human", "Question: {question}\n\nContext:\n{context}\n\nAnswer:")
     ])
 
-    # RAG CHAIN: retrieval → prepare prompt fields → answer + sources (+ echo question)
-    rag_with_sources = (
-        # 1) retrieve docs
-        RunnableLambda(
-            lambda x: {
-                "question": x["question"],
-                "history": x["history"],
-                "docs": retriever.invoke(x["question"])
-            }
-        )
-        # 2) prepare fields for prompt + sources
-        | RunnableLambda(
-            lambda x: {
-                "question": x["question"],
-                "history": x["history"],
-                "context": format_context(x["docs"]),
-                "docs": x["docs"],
-            }
-        )
-        # 3) answer + sources; also return question so chat() can store it
-        | RunnableParallel({
-            "answer": (
-                RunnableLambda(lambda x: {
-                    "history": x["history"],
-                    "question": x["question"],
-                    "context": x["context"],
-                })
-                | prompt
-                | llm
-                | StrOutputParser()
-            ),
-            "sources": RunnableLambda(lambda x: extract_metadata(x["docs"])),
-            "question": RunnableLambda(lambda x: x["question"]),
+
+    def build_context(docs):
+        return "\n\n---\n".join(d.page_content for d in docs)
+
+
+    rag_chain = (
+
+        RunnableLambda(lambda x: {
+            "question_rewritten":
+                rewrite_chain.invoke({"input": x["question"], "history": x["history"]})
+        })
+
+        | RunnableLambda(lambda x: {
+            "question": x["question_rewritten"],
+            "docs": retriever.invoke(x["question_rewritten"])
+        })
+
+        | RunnableLambda(lambda x: {
+            "question": x["question"],
+            "docs": x["docs"],
+            "context": build_context(x["docs"])
+        })
+        # 4. Generate answer
+        | RunnableLambda(lambda x: {
+            "question": x["question"],
+            "docs": x["docs"],
+            "answer":
+                llm.invoke(answer_prompt.format(question=x["question"], context=x["context"])).content
         })
     )
 
-    return rag_with_sources
 
-def rewrite_followup(question: str, history: list) -> str:
-    """
-    Rewrite vague follow-up questions into standalone ones
-    using the last human message. No LLM involved.
-    """
-    if not history:
-        return question
+    return rag_chain
 
-    # last human message in history
-    last_human = None
-    for msg in reversed(history):
-        if isinstance(msg, HumanMessage):
-            last_human = msg.content
-            break
-
-    if not last_human:
-        return question
-
-    # simple merge: "<last question>. Follow-up: <new question>"
-    return f"{last_human}. Follow-up question: {question}"
 
 
 
 def chat(user_input, API_KEY):
 
     if not hasattr(chat, "rag"):
-        chat.rag = setup_rag(API_KEY=API_KEY)
+        chat.rag = setup_rag(API_KEY)
 
     if not hasattr(chat, "history"):
         chat.history = []
 
-    # rewrite follow-up using previous human question
-    rewritten_for_retriever = rewrite_followup(user_input, chat.history)
-
     result = chat.rag.invoke({
         "history": chat.history,
-        "question": rewritten_for_retriever
+        "question": user_input
     })
 
-    # we explicitly return "question" from the chain, so this is the rewritten one
-    rewritten_question = result.get("question", rewritten_for_retriever)
-
-    print("Rewritten question:", rewritten_question)
     answer = result["answer"]
+    docs = result["docs"]
 
-    # update memory with the REWRITTEN question
-    chat.history.append(HumanMessage(content=rewritten_question))
+    # Format sources cleanly
+    sources = []
+    deduped_sources = []
+
+    for d in docs:
+        meta = d.metadata or {}
+        sources.append({
+            "title": meta.get("title"),
+            "url": meta.get("url"),
+            "metadata": meta,
+            "excerpt": d.page_content[:300]
+        })
+
+    if sources:
+        deduped_sources = list({(s["title"], s["url"]): s for s in sources}.values())
+
+    # update memory
+    chat.history.append(HumanMessage(content=user_input))
     chat.history.append(AIMessage(content=answer))
-    chat.history[:] = trim_history(chat.history)
-
-    deduped_sources = list({(s["title"], s["url"]): s for s in result["sources"]}.values())
-    if "sorry" in answer.lower():
-        deduped_sources = []
 
     return {
         "answer": answer,
         "history": chat.history,
         "sources": deduped_sources
     }
-
