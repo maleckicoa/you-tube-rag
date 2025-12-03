@@ -31,12 +31,24 @@ def setup_rag(api_key):
 
 
 
-   
 
 
     rewrite_prompt = ChatPromptTemplate.from_messages([
-        ("system", """Rewrite the user's question so it makes sense 
-        in the context of the conversation. Do NOT answer. Only rewrite."""),
+        ("system",
+        """
+    Rewrite the user's latest question ONLY if needed.
+
+    Rules:
+    1. If the user's question already makes sense as an investing/finance question,
+    return it EXACTLY as it is (no changes).
+    2. If it does NOT make sense as an investing question, rewrite it so it fits
+    the context of the last 3 human messages.
+    3. Never answer the question. Only rewrite it.
+    4. If rewriting is impossible, return: "Unable to rewrite."
+
+    Last 3 human messages:
+    {history}
+        """),
         ("human", "{input}")
     ])
     rewrite_chain = rewrite_prompt | llm | RunnableLambda(lambda x: x.content.strip())
@@ -45,7 +57,7 @@ def setup_rag(api_key):
 
     answer_prompt = ChatPromptTemplate.from_messages([
         ("system", """You answer ONLY using the retrieved documents.
-        If the answer is not there, say you don't know."""),
+        If the answer is not there, apologize and say you don't know the answer to the question."""),
         ("human", "Question: {question}\n\nContext:\n{context}\n\nAnswer:")
     ])
 
@@ -54,11 +66,18 @@ def setup_rag(api_key):
         return "\n\n---\n".join(d.page_content for d in docs)
 
 
+
+    def last_three_human(history):
+        human_msgs = [m.content for m in history if m.type == "human"]
+        return "\n".join(human_msgs[-3:])
+
+
     rag_chain = (
 
         RunnableLambda(lambda x: {
             "question_rewritten":
-                rewrite_chain.invoke({"input": x["question"], "history": x["history"]})
+                rewrite_chain.invoke({"input": x["question"], 
+                "history": last_three_human(x["history"])})
         })
 
         | RunnableLambda(lambda x: {
@@ -118,9 +137,18 @@ def chat(user_input, API_KEY):
     if sources:
         deduped_sources = list({(s["title"], s["url"]): s for s in sources}.values())
 
-    # update memory
-    chat.history.append(HumanMessage(content=user_input))
-    chat.history.append(AIMessage(content=answer))
+    # Prevent state update if the system explicitly didn't find an answer
+    def is_unknown(a: str) -> bool:
+        a_low = (a or "").lower()
+        return "don't know" in a_low or "do not know" in a_low
+
+    if not is_unknown(answer):
+        # update memory only if we had a valid answer
+        chat.history.append(HumanMessage(content=user_input))
+        chat.history.append(AIMessage(content=answer))
+    else:
+        # if unknown, do not update sources either
+        deduped_sources = []
 
     return {
         "answer": answer,
