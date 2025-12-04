@@ -1,10 +1,7 @@
 import os
 from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse
 from src.rag_runner import chat
 from dotenv import load_dotenv
-
-from src.utils import chatbot_text_response, generate_tts_audio_bytes
 
 
 load_dotenv()
@@ -23,18 +20,6 @@ async def you_tube_rag(request: Request):
     result = chat(user_input, API_KEY)
     return {"result": result}
 
-
-@app.post("/you-tube-rag-tts")
-async def speak(prompt: str):
-    #response_text = chatbot_text_response(prompt)         # 1. Generate chatbot text (LLM/RAG)
-    audio_bytes = generate_tts_audio_bytes(prompt) # 2. Generate WAV bytes from TTS
-    async def audio_generator():                          # 3. Convert bytes → generator so StreamingResponse can stream it
-        yield audio_bytes
-
-    return StreamingResponse(
-        audio_generator(),
-        media_type="audio/wav"   # or "audio/mpeg" if you convert to mp3
-    )
 
 
 

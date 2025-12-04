@@ -1,6 +1,5 @@
 import re
 import json
-from TTS.api import TTS
 
 
 def extract_plaintext_from_json_subs(text):
@@ -37,28 +36,3 @@ def format_context(docs):
 def trim_history(history):
     return history[-20*2:] #keep 20 latest exchanges
 
-
-
-
-_tts = TTS("tts_models/en/ljspeech/tacotron2-DDC")
-
-def generate_tts_audio_bytes(text: str) -> bytes:
-    """
-    Convert text to speech and return audio as raw bytes (WAV).
-    """
-    # Generate WAV bytes into an in-memory buffer
-    wav_path = "temp_output.wav"
-    _tts.tts_to_file(text=text, file_path=wav_path, progress_bar=False, verbose=False)
-
-    with open(wav_path, "rb") as f:
-        audio_bytes = f.read()
-
-    return audio_bytes
-
-
-def chatbot_text_response(user_input: str) -> str:
-    """
-    Your chatbot logic (placeholder).
-    Replace with your real pipeline / RAG / OpenAI call.
-    """
-    return f"{user_input}"
