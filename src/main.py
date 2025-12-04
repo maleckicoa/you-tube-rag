@@ -4,6 +4,10 @@ from src.rag_runner import chat
 from dotenv import load_dotenv
 
 
+from fastapi.responses import StreamingResponse
+import httpx
+
+
 load_dotenv()
 API_KEY = os.getenv("OPENAI_API_KEY")
 if not API_KEY:
@@ -19,8 +23,6 @@ async def you_tube_rag(request: Request):
     user_input = data.get("user_input")
     result = chat(user_input, API_KEY)
     return {"result": result}
-
-
 
 
 def main():

@@ -28,11 +28,3 @@ def extract_metadata(docs):
         }
         for doc in docs
     ] if docs else []
-
-
-def format_context(docs):
-    return "\n\n".join(d.page_content for d in docs)
-
-def trim_history(history):
-    return history[-20*2:] #keep 20 latest exchanges
-
