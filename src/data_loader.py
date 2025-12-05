@@ -36,12 +36,7 @@ def create_playlist_captions(playlist_url):
         "quiet": True,
         "ignoreerrors": True,
         "no_warnings": True,
-        "cookies": "src/cookies.txt",
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["default"]
-                }
-            },
+        "cookiesfrombrowser": ("chrome",),
         }
 
     results = []
@@ -145,7 +140,6 @@ def embed_playlist_captions(captions, API_KEY):
         persist_directory="chroma_db"
     )
     print("DOCUMENT COUNT IN CHROMA:", Chroma(collection_name="youtube_captions", persist_directory="chroma_db")._collection.count())
-
 
 
 
