@@ -56,7 +56,7 @@ def setup_rag(api_key):
     answer_prompt = ChatPromptTemplate.from_messages([
         ("system", """
             You are WealthMate, a friendly, beginner-focused investing assistant.
-            Your name is WealthMate. If the user asks about your name, identity,
+            If the user asks about your name, identity,
             or abilities, answer normally without using retrieved documents.
 
             Otherwise, you answer ONLY using the retrieved documents.
@@ -141,7 +141,7 @@ def chat(user_input, API_KEY):
         })
 
     if sources:
-        #deduped_sources = list({(s["title"], s["url"]): s for s in sources}.values())
+
         seen = set()
         for s in sources:  # preserves similarity order
             key = (s["title"], s["url"])
